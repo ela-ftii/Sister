@@ -2,23 +2,27 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
-const PORT = 3000;
+
+// --- PENTING: Menggunakan port dinamis dari lingkungan cloud (Railway) ---
+const PORT = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
+// Melayani file statis (index.html, CSS, JS) dari folder 'public'
 app.use(express.static('public')); 
 
 // --- Database Simulasi ---
 let strong_db_kehadiran = {}; 
 let strong_db_nilai_tugas = {}; 
+
 let weak_db_nilai_tugas_replica = {}; 
 let eventual_db_nilai_akhir = {}; 
 
-// --- LOG PERISTIWA BARU ---
+// --- LOG PERISTIWA ---
 let log_peristiwa = [];
 
 // Variabel untuk simulasi Consistency
-const WEAK_REPLICATION_DELAY = 60000; // 60 detik (1 menit)
-const EVENTUAL_BATCH_INTERVAL = 5000; // 5 detik
+const WEAK_REPLICATION_DELAY = 60000; // 60 detik (1 menit) untuk replikasi Weak
+const EVENTUAL_BATCH_INTERVAL = 5000; // 5 detik untuk proses batch Eventual
 
 // Fungsi untuk mencatat peristiwa
 function addLog(type, message, details = {}) {
@@ -26,7 +30,7 @@ function addLog(type, message, details = {}) {
     const logEntry = { timestamp, type, message, details };
     log_peristiwa.unshift(logEntry); // Tambahkan ke depan
     if (log_peristiwa.length > 50) {
-        log_peristiwa.pop(); // Batasi log hingga 50 entri
+        log_peristiwa.pop(); 
     }
     console.log(`[LOG ${type}] ${timestamp}: ${message}`);
 }
@@ -68,7 +72,6 @@ app.post('/api/weak/nilai_tugas', (req, res) => {
 
     // 3. Replikasi Asynchronous ke replika yang dibaca klien (Simulasi delay 1 menit)
     setTimeout(() => {
-        // Tulis ke DB/Replika yang dibaca oleh klien
         weak_db_nilai_tugas_replica[studentId] = score; 
         addLog('WEAK_REPLICATION_END', `Nilai Tugas direplikasi ke replika klien.`, { studentId, score, db: 'Weak Replica' });
     }, WEAK_REPLICATION_DELAY); 
@@ -114,15 +117,17 @@ app.get('/api/data/:studentId', (req, res) => {
     res.json(data);
 });
 
-// --- API BARU: Mendapatkan Log Peristiwa ---
+// --- API Mendapatkan Log Peristiwa ---
 app.get('/api/log', (req, res) => {
+    // Memberikan header yang jelas bahwa ini adalah JSON
+    res.setHeader('Content-Type', 'application/json');
     res.json(log_peristiwa);
 });
 
+
 // --- Server Start ---
 app.listen(PORT, () => {
-    console.log(`Server berjalan di http://localhost:${PORT}`);
-    console.log(`Akses halaman HTML di http://localhost:${PORT}/index.html`);
+    console.log(`Server berjalan di port ${PORT}`);
 });
 
 // Inisialisasi data awal (contoh mahasiswa)
