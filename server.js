@@ -38,7 +38,7 @@ function addLog(type, message, details = {}) {
 // --- Simulasi Consistency Logic ---
 
 /**
- * Strong Consistency: Kehadiran
+ * Strong Consistency: Kehadiran (Akurasi instan)
  */
 app.post('/api/strong/kehadiran', (req, res) => {
     const { studentId, isPresent } = req.body;
@@ -54,7 +54,7 @@ app.post('/api/strong/kehadiran', (req, res) => {
 
 
 /**
- * Weak Consistency: Nilai Tugas
+ * Weak Consistency: Nilai Tugas (Kecepatan input diutamakan)
  */
 app.post('/api/weak/nilai_tugas', (req, res) => {
     const { studentId, score } = req.body;
@@ -79,15 +79,17 @@ app.post('/api/weak/nilai_tugas', (req, res) => {
 
 
 /**
- * Eventual Consistency: Perhitungan Nilai Akhir
+ * Eventual Consistency: Perhitungan Nilai Akhir (Pasti benar pada waktunya)
  */
 function runBatchProcess() {
     addLog('EVENTUAL_BATCH_START', 'Menjalankan Batch Calculation...');
     
     let updatedCount = 0;
     for (const studentId in strong_db_kehadiran) {
+        // Ambil data dari sumber Strong
         const kehadiran = strong_db_kehadiran[studentId] ? 1 : 0; 
         const nilaiTugas = strong_db_nilai_tugas[studentId] || 0; 
+        // Formula Simulasi Nilai Akhir: (Kehadiran * 40) + (Nilai Tugas * 0.6)
         const finalScore = (kehadiran * 40) + (nilaiTugas * 0.6);
 
         if (eventual_db_nilai_akhir[studentId] !== finalScore.toFixed(2)) {
@@ -119,7 +121,6 @@ app.get('/api/data/:studentId', (req, res) => {
 
 // --- API Mendapatkan Log Peristiwa ---
 app.get('/api/log', (req, res) => {
-    // Memberikan header yang jelas bahwa ini adalah JSON
     res.setHeader('Content-Type', 'application/json');
     res.json(log_peristiwa);
 });

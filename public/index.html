@@ -97,7 +97,7 @@
                 document.getElementById('strong-status').innerText = `❌ ERROR: ${error.message}`;
             }
             fetchData(); 
-            fetchLog(); // Refresh log setelah Strong Write
+            fetchLog(); 
         }
 
         // --- Weak Consistency: Nilai Tugas ---
@@ -122,7 +122,7 @@
             } catch (error) {
                 document.getElementById('weak-status').innerText = `❌ ERROR: ${error.message}`;
             }
-            fetchLog(); // Refresh log setelah Weak Write Start
+            fetchLog(); 
         }
 
         // --- Pembacaan Data (Gabungan) ---
@@ -146,7 +146,7 @@
             }
         }
         
-        // --- Fungsi Baru: Ambil Log Peristiwa ---
+        // --- Fungsi Ambil Log Peristiwa ---
         async function fetchLog() {
             document.getElementById('log-data').innerHTML = 'Mengambil log terbaru...';
             try {
@@ -177,7 +177,7 @@
         window.onload = () => {
             fetchData();
             fetchLog();
-            // Refresh data dan log setiap 5 detik untuk mencerminkan proses Eventual
+            // Refresh data dan log setiap 5 detik
             setInterval(fetchData, 5000); 
             setInterval(fetchLog, 5000); 
         };
