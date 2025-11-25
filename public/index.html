@@ -48,7 +48,7 @@
 
         <div class="section weak">
             <h2>🟡 Weak Consistency: Nilai Tugas</h2>
-            <p><strong>Deskripsi:</strong> Merespon segera. Replika klien tertunda **1 menit**.</p>
+            <p><strong>Deskripsi:</strong> Merespon segera. Replika klien tertunda **15 detik**.</p>
             <label for="nilaiTugas">Masukkan Nilai Tugas (0-100):</label>
             <input type="number" id="nilaiTugas" min="0" max="100" value="80">
             <button onclick="updateNilaiTugas()">Submit Nilai</button>
@@ -59,7 +59,7 @@
 
         <div class="section eventual">
             <h2>🟣 Eventual Consistency: Nilai Akhir</h2>
-            <p><strong>Deskripsi:</strong> Batch Process berjalan setiap **5 detik** dari DB utama.</p>
+            <p><strong>Deskripsi:</strong> Batch Process berjalan setiap **1 menit** dari DB utama.</p>
         </div>
 
         <hr>
@@ -118,7 +118,7 @@
                 const data = await response.json();
                 
                 document.getElementById('weak-status').innerText = 
-                    `✅ SEGERA: ${data.message} | Nilai Diterima: ${data.score_received}. Coba refresh data status setelah 1 menit!`;
+                    `✅ SEGERA: ${data.message} | Nilai Diterima: ${data.score_received}. Coba refresh data status setelah 15 detik!`;
             } catch (error) {
                 document.getElementById('weak-status').innerText = `❌ ERROR: ${error.message}`;
             }
@@ -137,8 +137,8 @@
                     <p><strong>Nilai Tugas (WEAK):</strong> ${data.nilai_tugas}</p>
                     <p><strong>Nilai Akhir (EVENTUAL):</strong> ${data.nilai_akhir}</p>
                     <p style="font-size: small;">
-                        <em>Nilai Tugas (Weak) akan sinkron setelah 1 menit.</em><br>
-                        <em>Nilai Akhir (Eventual) diperbarui setiap 5 detik (dari data Strong).</em>
+                        <em>Nilai Tugas (Weak) akan sinkron setelah 15 detik.</em><br>
+                        <em>Nilai Akhir (Eventual) diperbarui setiap 1 menit (dari data Strong).</em>
                     </p>
                 `;
             } catch (error) {
@@ -177,9 +177,9 @@
         window.onload = () => {
             fetchData();
             fetchLog();
-            // Refresh data dan log setiap 5 detik
-            setInterval(fetchData, 5000); 
-            setInterval(fetchLog, 5000); 
+            // Refresh data setiap 60 detik untuk mencerminkan proses Eventual
+            setInterval(fetchData, 60000); 
+            setInterval(fetchLog, 60000); // Sinkronkan refresh log dengan interval Eventual
         };
     </script>
 </body>

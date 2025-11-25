@@ -3,11 +3,9 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
 
-// --- PENTING: Menggunakan port dinamis dari lingkungan cloud (Railway) ---
 const PORT = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
-// Melayani file statis (index.html, CSS, JS) dari folder 'public'
 app.use(express.static('public')); 
 
 // --- Database Simulasi ---
@@ -21,14 +19,14 @@ let eventual_db_nilai_akhir = {};
 let log_peristiwa = [];
 
 // Variabel untuk simulasi Consistency
-const WEAK_REPLICATION_DELAY = 60000; // 60 detik (1 menit) untuk replikasi Weak
-const EVENTUAL_BATCH_INTERVAL = 5000; // 5 detik untuk proses batch Eventual
+const WEAK_REPLICATION_DELAY = 15000; // 15 detik untuk replikasi Weak
+const EVENTUAL_BATCH_INTERVAL = 60000; // 60 detik (1 menit) untuk proses batch Eventual
 
 // Fungsi untuk mencatat peristiwa
 function addLog(type, message, details = {}) {
     const timestamp = new Date().toLocaleTimeString('id-ID');
     const logEntry = { timestamp, type, message, details };
-    log_peristiwa.unshift(logEntry); // Tambahkan ke depan
+    log_peristiwa.unshift(logEntry); 
     if (log_peristiwa.length > 50) {
         log_peristiwa.pop(); 
     }
@@ -54,7 +52,7 @@ app.post('/api/strong/kehadiran', (req, res) => {
 
 
 /**
- * Weak Consistency: Nilai Tugas (Kecepatan input diutamakan)
+ * Weak Consistency: Nilai Tugas (Sinkronisasi cepat, 15 detik)
  */
 app.post('/api/weak/nilai_tugas', (req, res) => {
     const { studentId, score } = req.body;
@@ -66,11 +64,11 @@ app.post('/api/weak/nilai_tugas', (req, res) => {
 
     // 2. Respon segera (Weak Consistency)
     res.status(202).json({ 
-        message: 'Nilai Tugas diterima (Weak Consistency). Anda mungkin melihat nilai lama saat ini selama 1 menit.',
+        message: 'Nilai Tugas diterima (Weak Consistency). Anda mungkin melihat nilai lama saat ini selama 15 detik.',
         score_received: score
     });
 
-    // 3. Replikasi Asynchronous ke replika yang dibaca klien (Simulasi delay 1 menit)
+    // 3. Replikasi Asynchronous ke replika yang dibaca klien (Simulasi delay 15 detik)
     setTimeout(() => {
         weak_db_nilai_tugas_replica[studentId] = score; 
         addLog('WEAK_REPLICATION_END', `Nilai Tugas direplikasi ke replika klien.`, { studentId, score, db: 'Weak Replica' });
@@ -79,17 +77,15 @@ app.post('/api/weak/nilai_tugas', (req, res) => {
 
 
 /**
- * Eventual Consistency: Perhitungan Nilai Akhir (Pasti benar pada waktunya)
+ * Eventual Consistency: Perhitungan Nilai Akhir (Batch 1 menit)
  */
 function runBatchProcess() {
     addLog('EVENTUAL_BATCH_START', 'Menjalankan Batch Calculation...');
     
     let updatedCount = 0;
     for (const studentId in strong_db_kehadiran) {
-        // Ambil data dari sumber Strong
         const kehadiran = strong_db_kehadiran[studentId] ? 1 : 0; 
         const nilaiTugas = strong_db_nilai_tugas[studentId] || 0; 
-        // Formula Simulasi Nilai Akhir: (Kehadiran * 40) + (Nilai Tugas * 0.6)
         const finalScore = (kehadiran * 40) + (nilaiTugas * 0.6);
 
         if (eventual_db_nilai_akhir[studentId] !== finalScore.toFixed(2)) {
@@ -100,7 +96,7 @@ function runBatchProcess() {
     addLog('EVENTUAL_BATCH_END', `Perhitungan Nilai Akhir selesai. ${updatedCount} data diperbarui.`, { updatedCount, db: 'Eventual Result' });
 }
 
-// Mulai scheduler Eventual Consistency (Batch 5 detik)
+// Mulai scheduler Eventual Consistency (Batch 1 menit)
 setInterval(runBatchProcess, EVENTUAL_BATCH_INTERVAL);
 
 
@@ -112,8 +108,8 @@ app.get('/api/data/:studentId', (req, res) => {
     const data = {
         studentId,
         kehadiran: strong_db_kehadiran[studentId] ? 'Hadir (Strong)' : 'Tidak Hadir (Strong)',
-        nilai_tugas: weak_db_nilai_tugas_replica[studentId] || 'N/A (Weak - tertinggal hingga 1m)',
-        nilai_akhir: eventual_db_nilai_akhir[studentId] || 'N/A (Eventual - tunggu batch 5s)',
+        nilai_tugas: weak_db_nilai_tugas_replica[studentId] || 'N/A (Weak - tertinggal hingga 15s)',
+        nilai_akhir: eventual_db_nilai_akhir[studentId] || 'N/A (Eventual - tunggu batch 1m)',
     };
 
     res.json(data);
