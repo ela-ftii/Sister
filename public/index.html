@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Demo Strong, Weak, & Eventual Consistency</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
+        .container { max-width: 800px; margin: auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h2 { border-bottom: 2px solid #3498db; padding-bottom: 10px; color: #2c3e50; }
+        .section { margin-bottom: 20px; padding: 15px; border-left: 5px solid; border-radius: 4px; }
+        .strong { border-color: #27ae60; background-color: #e8f8f5; }
+        .weak { border-color: #f39c12; background-color: #fef5e7; }
+        .eventual { border-color: #8e44ad; background-color: #f4ecf7; }
+        label { font-weight: bold; display: block; margin-top: 10px; }
+        input[type="number"], button { padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; }
+        button { cursor: pointer; background-color: #3498db; color: white; border: none; margin-right: 10px; }
+        button:hover { background-color: #2980b9; }
+        #status, #result-data { margin-top: 20px; padding: 15px; border: 1px solid #ddd; background-color: #ecf0f1; border-radius: 4px; }
+        .log-list { list-style: none; padding: 0; }
+        .log-entry { 
+            border-bottom: 1px dashed #ccc; 
+            padding: 5px 0; 
+            font-size: 0.9em; 
+        }
+        .log-timestamp { font-weight: bold; color: #555; margin-right: 10px; }
+        .log-type-STRONG_WRITE { color: #27ae60; }
+        .log-type-WEAK_WRITE_START { color: #f39c12; }
+        .log-type-WEAK_REPLICATION_END { color: #e67e22; }
+        .log-type-EVENTUAL_BATCH_START { color: #8e44ad; }
+        .log-type-EVENTUAL_BATCH_END { color: #9b59b6; font-weight: bold; }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Manajemen Nilai dan Kehadiran (MHS001)</h1>
+
+        <div class="section strong">
+            <h2>🟢 Strong Consistency: Kehadiran</h2>
+            <p><strong>Deskripsi:</strong> Operasi harus berhasil dan segera terlihat benar di semua tempat (DB utama) sebelum merespon.</p>
+            <button onclick="updateKehadiran(true)">Catat Hadir</button>
+            <button onclick="updateKehadiran(false)">Catat Tidak Hadir</button>
+            <p id="strong-status"></p>
+        </div>
+
+        <hr>
+
+        <div class="section weak">
+            <h2>🟡 Weak Consistency: Nilai Tugas</h2>
+            <p><strong>Deskripsi:</strong> Merespon segera. Replika klien tertunda **1 menit**.</p>
+            <label for="nilaiTugas">Masukkan Nilai Tugas (0-100):</label>
+            <input type="number" id="nilaiTugas" min="0" max="100" value="80">
+            <button onclick="updateNilaiTugas()">Submit Nilai</button>
+            <p id="weak-status"></p>
+        </div>
+
+        <hr>
+
+        <div class="section eventual">
+            <h2>🟣 Eventual Consistency: Nilai Akhir</h2>
+            <p><strong>Deskripsi:</strong> Batch Process berjalan setiap **5 detik** dari DB utama.</p>
+        </div>
+
+        <hr>
+
+        <h2>Hasil Pembacaan Data & Log Peristiwa</h2>
+        <button onclick="fetchData()">Refresh Data Status</button>
+        <button onclick="fetchLog()">Refresh Log Peristiwa</button>
+        
+        <div id="result-data">
+            Memuat data...
+        </div>
+
+        <h3>📚 Log Peristiwa Server (50 Entri Terbaru)</h3>
+        <div id="log-data">
+            Memuat log...
+        </div>
+
+    </div>
+
+    <script>
+        const STUDENT_ID = 'MHS001';
+
+        // --- Strong Consistency: Kehadiran ---
+        async function updateKehadiran(isPresent) {
+            document.getElementById('strong-status').innerText = `Mengirim Kehadiran...`;
+            try {
+                const response = await fetch('/api/strong/kehadiran', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ studentId: STUDENT_ID, isPresent })
+                });
+                const data = await response.json();
+                document.getElementById('strong-status').innerText = `✅ SUKSES: ${data.message} | Status: ${data.status}`;
+            } catch (error) {
+                document.getElementById('strong-status').innerText = `❌ ERROR: ${error.message}`;
+            }
+            fetchData(); 
+            fetchLog(); // Refresh log setelah Strong Write
+        }
+
+        // --- Weak Consistency: Nilai Tugas ---
+        async function updateNilaiTugas() {
+            const score = parseInt(document.getElementById('nilaiTugas').value);
+            if (isNaN(score) || score < 0 || score > 100) {
+                alert('Nilai harus antara 0 dan 100.');
+                return;
+            }
+
+            document.getElementById('weak-status').innerText = `Mengirim Nilai ${score}...`;
+            try {
+                const response = await fetch('/api/weak/nilai_tugas', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ studentId: STUDENT_ID, score })
+                });
+                const data = await response.json();
+                
+                document.getElementById('weak-status').innerText = 
+                    `✅ SEGERA: ${data.message} | Nilai Diterima: ${data.score_received}. Coba refresh data status setelah 1 menit!`;
+            } catch (error) {
+                document.getElementById('weak-status').innerText = `❌ ERROR: ${error.message}`;
+            }
+            fetchLog(); // Refresh log setelah Weak Write Start
+        }
+
+        // --- Pembacaan Data (Gabungan) ---
+        async function fetchData() {
+            document.getElementById('result-data').innerHTML = 'Mengambil data terbaru...';
+            try {
+                const response = await fetch(`/api/data/${STUDENT_ID}`);
+                const data = await response.json();
+
+                document.getElementById('result-data').innerHTML = `
+                    <p><strong>Kehadiran (STRONG):</strong> ${data.kehadiran}</p>
+                    <p><strong>Nilai Tugas (WEAK):</strong> ${data.nilai_tugas}</p>
+                    <p><strong>Nilai Akhir (EVENTUAL):</strong> ${data.nilai_akhir}</p>
+                    <p style="font-size: small;">
+                        <em>Nilai Tugas (Weak) akan sinkron setelah 1 menit.</em><br>
+                        <em>Nilai Akhir (Eventual) diperbarui setiap 5 detik (dari data Strong).</em>
+                    </p>
+                `;
+            } catch (error) {
+                document.getElementById('result-data').innerHTML = `❌ Gagal mengambil data: ${error.message}`;
+            }
+        }
+        
+        // --- Fungsi Baru: Ambil Log Peristiwa ---
+        async function fetchLog() {
+            document.getElementById('log-data').innerHTML = 'Mengambil log terbaru...';
+            try {
+                const response = await fetch('/api/log');
+                const logs = await response.json();
+
+                let logHtml = '<ul class="log-list">';
+                logs.forEach(log => {
+                    const detailsStr = Object.keys(log.details).map(k => `${k}: ${log.details[k]}`).join(', ');
+                    logHtml += `
+                        <li class="log-entry">
+                            <span class="log-timestamp">${log.timestamp}</span>
+                            <span class="log-type log-type-${log.type}">${log.type}</span>: ${log.message} 
+                            (${detailsStr})
+                        </li>
+                    `;
+                });
+                logHtml += '</ul>';
+                document.getElementById('log-data').innerHTML = logHtml;
+
+            } catch (error) {
+                document.getElementById('log-data').innerHTML = `❌ Gagal mengambil log: ${error.message}`;
+            }
+        }
+
+
+        // Muat data saat halaman pertama kali dimuat
+        window.onload = () => {
+            fetchData();
+            fetchLog();
+            // Refresh data dan log setiap 5 detik untuk mencerminkan proses Eventual
+            setInterval(fetchData, 5000); 
+            setInterval(fetchLog, 5000); 
+        };
+    </script>
+</body>
+</html>
